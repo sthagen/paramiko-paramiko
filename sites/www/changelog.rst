@@ -2,8 +2,21 @@
 Changelog
 =========
 
-- :bug:`1462` (via :issue:`1882`) Newer server-side key exchange algorithms not
-  intended to use SHA1 (``diffie-hellman-group14-sha256``,
+- :release:`2.8.0 <2021-10-09>`
+- :support:`-` Administrivia overhaul, including but not limited to:
+
+  - Migrate CI to CircleCI
+  - Primary dev branch is now ``main`` (renamed)
+  - Many README edits for clarity, modernization etc; including a bunch more
+    (and consistent) status badges & unification with main project site index
+  - PyPI page much more fleshed out (long_description is now filled in with the
+    README; sidebar links expanded; etc)
+  - flake8, pytest configs split out of setup.cfg into their own files
+  - Invoke/invocations (used by maintainers/contributors) upgraded to modern
+    versions
+
+- :bug:`1462 major` (via :issue:`1882`) Newer server-side key exchange
+  algorithms not intended to use SHA1 (``diffie-hellman-group14-sha256``,
   ``diffie-hellman-group16-sha512``) were incorrectly using SHA1 after all, due
   to a bug causing them to ignore the ``hash_algo`` class attribute. This has
   been corrected. Big thanks to ``@miverson`` for the report and to Benno Rice
