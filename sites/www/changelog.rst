@@ -2,6 +2,67 @@
 Changelog
 =========
 
+- :support:`2004` (via :issue:`2011`) Apply unittest ``skipIf`` to tests
+  currently using SHA1 in their critical path, to avoid failures on systems
+  starting to disable SHA1 outright in their crypto backends (eg RHEL 9).
+  Report & patch via Paul Howarth.
+- :release:`2.10.3 <2022-03-18>`
+- :release:`2.9.3 <2022-03-18>`
+- :bug:`1963` (via :issue:`1977`) Certificate-based pubkey auth was
+  inadvertently broken when adding SHA2 support; this has been fixed. Reported
+  by Erik Forsberg and fixed by Jun Omae.
+- :bug:`2002` (via :issue:`2003`) Switch from module-global to thread-local
+  storage when recording thread IDs for a logging helper; this should avoid one
+  flavor of memory leak for long-running processes. Catch & patch via Richard
+  Kojedzinszky.
+- :release:`2.10.2 <2022-03-14>`
+- :bug:`2001` Fix Python 2 compatibility breakage introduced in 2.10.1. Spotted
+  by Christian Hammond.
+
+  .. warning::
+      This is almost certainly the last time we will fix Python 2 related
+      errors! Please see `the roadmap
+      <https://bitprophet.org/projects/#roadmap>`_.
+
+- :release:`2.10.1 <2022-03-11>`
+- :bug:`-` (`CVE-2022-24302
+  <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-24302>`_) Creation
+  of new private key files using `~paramiko.pkey.PKey` subclasses was subject
+  to a race condition between file creation & mode modification, which could be
+  exploited by an attacker with knowledge of where the Paramiko-using code
+  would write out such files.
+
+  This has been patched by using `os.open` and `os.fdopen` to ensure new files
+  are opened with the correct mode immediately. We've left the subsequent
+  explicit ``chmod`` in place to minimize any possible disruption, though it
+  may get removed in future backwards-incompatible updates.
+
+  Thanks to Jan Schejbal for the report & feedback on the solution, and to
+  Jeremy Katz at Tidelift for coordinating the disclosure.
+- :release:`2.10.0 <2022-03-11>`
+- :feature:`1976` Add support for the ``%C`` token when parsing SSH config
+  files. Foundational PR submitted by ``@jbrand42``.
+- :feature:`1509` (via :issue:`1868`, :issue:`1837`) Add support for OpenSSH's
+  Windows agent as a fallback when Putty/WinPageant isn't available or
+  functional. Reported by ``@benj56`` with patches/PRs from ``@lewgordon`` and
+  Patrick Spendrin.
+- :bug:`892 major` Significantly speed up low-level read/write actions on
+  `~paramiko.sftp_file.SFTPFile` objects by using `bytearray`/`memoryview`.
+  This is unlikely to change anything for users of the higher level methods
+  like `SFTPClient.get <paramiko.sftp_client.SFTPClient.get>` or
+  `SFTPClient.getfo <paramiko.sftp_client.SFTPClient.getfo>`, but users of
+  `SFTPClient.open <paramiko.sftp_client.SFTPClient.open>` will likely see
+  orders of magnitude improvements for files larger than a few megabytes in
+  size.
+
+  Thanks to ``@jkji`` for the original report and to Sevastian Tchernov for the
+  patch.
+- :support:`1985` Add ``six`` explicitly to install-requires; it snuck into
+  active use at some point but has only been indicated by transitive dependency
+  on ``bcrypt`` until they somewhat-recently dropped it. This will be
+  short-lived until we `drop Python 2
+  support <https://bitprophet.org/projects/#roadmap>`_. Thanks to Sondre
+  Lillebø Gundersen for catch & patch.
 - :release:`2.9.2 <2022-01-08>`
 - :bug:`-` Connecting to servers which support ``server-sig-algs`` but which
   have no overlap between that list and what a Paramiko client supports, now

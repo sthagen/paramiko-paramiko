@@ -15,7 +15,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Paramiko; if not, write to the Free Software Foundation, Inc.,
-# 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
+# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA.
 
 """
 Some unit tests for public/private key objects.
@@ -23,6 +23,7 @@ Some unit tests for public/private key objects.
 
 import unittest
 import os
+import stat
 from binascii import hexlify
 from hashlib import md5
 
@@ -36,13 +37,14 @@ from paramiko import (
     SSHException,
 )
 from paramiko.py3compat import StringIO, byte_chr, b, bytes, PY2
+from paramiko.common import o600
 
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateNumbers
-from mock import patch
+from mock import patch, Mock
 import pytest
 
-from .util import _support, is_low_entropy
+from .util import _support, is_low_entropy, requires_sha1_signing
 
 
 # from openssh's ssh-keygen
@@ -254,6 +256,7 @@ class KeyTest(unittest.TestCase):
         pub = RSAKey(data=key.asbytes())
         self.assertTrue(pub.verify_ssh_sig(b"ice weasels", msg))
 
+    @requires_sha1_signing
     def test_sign_and_verify_ssh_rsa(self):
         self._sign_and_verify_rsa("ssh-rsa", SIGNED_RSA)
 
@@ -278,6 +281,7 @@ class KeyTest(unittest.TestCase):
         pub = DSSKey(data=key.asbytes())
         self.assertTrue(pub.verify_ssh_sig(b"ice weasels", msg))
 
+    @requires_sha1_signing
     def test_generate_rsa(self):
         key = RSAKey.generate(1024)
         msg = key.sign_ssh_data(b"jerri blank")
@@ -696,3 +700,78 @@ class KeyTest(unittest.TestCase):
             key1.load_certificate,
             _support("test_rsa.key-cert.pub"),
         )
+
+    @patch("paramiko.pkey.os")
+    def _test_keyfile_race(self, os_, exists):
+        # Re: CVE-2022-24302
+        password = "television"
+        newpassword = "radio"
+        source = _support("test_ecdsa_384.key")
+        new = source + ".new"
+        # Mock setup
+        os_.path.exists.return_value = exists
+        # Attach os flag values to mock
+        for attr, value in vars(os).items():
+            if attr.startswith("O_"):
+                setattr(os_, attr, value)
+        # Load fixture key
+        key = ECDSAKey(filename=source, password=password)
+        key._write_private_key = Mock()
+        # Write out in new location
+        key.write_private_key_file(new, password=newpassword)
+        # Expected open via os module
+        os_.open.assert_called_once_with(
+            new, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, o600
+        )
+        os_.fdopen.assert_called_once_with(os_.open.return_value, "w")
+        # Old chmod still around for backwards compat
+        os_.chmod.assert_called_once_with(new, o600)
+        assert (
+            key._write_private_key.call_args[0][0]
+            == os_.fdopen.return_value.__enter__.return_value
+        )
+
+    def test_new_keyfiles_avoid_file_descriptor_race_on_chmod(self):
+        self._test_keyfile_race(exists=False)
+
+    def test_existing_keyfiles_still_work_ok(self):
+        self._test_keyfile_race(exists=True)
+
+    def test_new_keyfiles_avoid_descriptor_race_integration(self):
+        # Integration-style version of above
+        password = "television"
+        newpassword = "radio"
+        source = _support("test_ecdsa_384.key")
+        new = source + ".new"
+        # Load fixture key
+        key = ECDSAKey(filename=source, password=password)
+        try:
+            # Write out in new location
+            key.write_private_key_file(new, password=newpassword)
+            # Test mode
+            assert stat.S_IMODE(os.stat(new).st_mode) == o600
+            # Prove can open with new password
+            reloaded = ECDSAKey(filename=new, password=newpassword)
+            assert reloaded == key
+        finally:
+            if os.path.exists(new):
+                os.unlink(new)
+
+    def test_sign_rsa_with_certificate(self):
+        data = b"ice weasels"
+        key_path = _support(os.path.join("cert_support", "test_rsa.key"))
+        key = RSAKey.from_private_key_file(key_path)
+        msg = key.sign_ssh_data(data, "rsa-sha2-256")
+        msg.rewind()
+        assert "rsa-sha2-256" == msg.get_text()
+        sign = msg.get_binary()
+        cert_path = _support(
+            os.path.join("cert_support", "test_rsa.key-cert.pub")
+        )
+        key.load_certificate(cert_path)
+        msg = key.sign_ssh_data(data, "rsa-sha2-256-cert-v01@openssh.com")
+        msg.rewind()
+        assert "rsa-sha2-256" == msg.get_text()
+        assert sign == msg.get_binary()
+        msg.rewind()
+        assert key.verify_ssh_sig(b"ice weasels", msg)
