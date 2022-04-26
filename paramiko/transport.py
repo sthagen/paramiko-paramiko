@@ -450,7 +450,7 @@ class Transport(threading.Thread, ClosingContextManager):
                 )
         # okay, normal socket-ish flow here...
         threading.Thread.__init__(self)
-        self.setDaemon(True)
+        self.daemon = True
         self.sock = sock
         # we set the timeout so we can check self.active periodically to
         # see if we should bail. socket.timeout exception is never propagated.
@@ -549,7 +549,15 @@ class Transport(threading.Thread, ClosingContextManager):
 
     @property
     def preferred_keys(self):
-        return self._filter_algorithm("keys")
+        # Interleave cert variants here; resistant to various background
+        # overwriting of _preferred_keys, and necessary as hostkeys can't use
+        # the logic pubkey auth does re: injecting/checking for certs at
+        # runtime
+        filtered = self._filter_algorithm("keys")
+        return tuple(
+            filtered
+            + tuple("{}-cert-v01@openssh.com".format(x) for x in filtered)
+        )
 
     @property
     def preferred_pubkeys(self):
