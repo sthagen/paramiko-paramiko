@@ -2,6 +2,17 @@
 Changelog
 =========
 
+- :support:`2038` (via :issue:`2039`) Recent versions of Cryptography have
+  deprecated Blowfish algorithm support; in lieu of an easy method for users to
+  remove it from the list of algorithms Paramiko tries to import and use, we've
+  decided to remove it from our "preferred algorithms" list. This will both
+  discourage use of a weak algorithm, and avoid warnings. Credit for
+  report/patch goes to Mike Roest.
+- :bug:`2008` (via :issue:`2010`) Windows-native SSH agent support as merged in
+  2.10 could encounter ``Errno 22`` ``OSError`` exceptions in some scenarios
+  (eg server not cleanly closing a relevant named pipe). This has been worked
+  around and should be less problematic. Reported by Danilo Campana Fuchs and
+  patched by Jun Omae.
 - :release:`2.10.4 <2022-04-25>`
 - :release:`2.9.4 <2022-04-25>`
 - :support:`1838 backported` (via :issue:`1870`/:issue:`2028`) Update
