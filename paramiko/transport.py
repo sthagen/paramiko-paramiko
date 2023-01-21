@@ -21,7 +21,6 @@
 Core protocol implementation
 """
 
-from __future__ import print_function
 import os
 import socket
 import sys
@@ -86,6 +85,7 @@ from paramiko.common import (
     MSG_NAMES,
     MSG_EXT_INFO,
     cMSG_EXT_INFO,
+    byte_ord,
 )
 from paramiko.compress import ZlibCompressor, ZlibDecompressor
 from paramiko.dsskey import DSSKey
@@ -100,7 +100,6 @@ from paramiko.kex_gss import KexGSSGex, KexGSSGroup1, KexGSSGroup14
 from paramiko.message import Message
 from paramiko.packet import Packetizer, NeedRekeyException
 from paramiko.primes import ModulusPack
-from paramiko.py3compat import string_types, long, byte_ord, b, input, PY2
 from paramiko.rsakey import RSAKey
 from paramiko.ecdsakey import ECDSAKey
 from paramiko.server import ServerInterface
@@ -112,7 +111,11 @@ from paramiko.ssh_exception import (
     IncompatiblePeer,
     ProxyCommandFailure,
 )
-from paramiko.util import retry_on_signal, ClosingContextManager, clamp_value
+from paramiko.util import (
+    ClosingContextManager,
+    clamp_value,
+    b,
+)
 
 
 # for thread cleanup
@@ -339,8 +342,8 @@ class Transport(threading.Thread, ClosingContextManager):
         If the object is not actually a socket, it must have the following
         methods:
 
-        - ``send(str)``: Writes from 1 to ``len(str)`` bytes, and returns an
-          int representing the number of bytes written.  Returns
+        - ``send(bytes)``: Writes from 1 to ``len(bytes)`` bytes, and returns
+          an int representing the number of bytes written.  Returns
           0 or raises ``EOFError`` if the stream has been closed.
         - ``recv(int)``: Reads from 1 to ``int`` bytes and returns them as a
           string.  Returns 0 or raises ``EOFError`` if the stream has been
@@ -410,7 +413,7 @@ class Transport(threading.Thread, ClosingContextManager):
         self.hostname = None
         self.server_extensions = {}
 
-        if isinstance(sock, string_types):
+        if isinstance(sock, str):
             # convert "host:port" into (host, port)
             hl = sock.split(":", 1)
             self.hostname = hl[0]
@@ -432,7 +435,7 @@ class Transport(threading.Thread, ClosingContextManager):
                     # addr = sockaddr
                     sock = socket.socket(af, socket.SOCK_STREAM)
                     try:
-                        retry_on_signal(lambda: sock.connect((hostname, port)))
+                        sock.connect((hostname, port))
                     except socket.error as e:
                         reason = str(e)
                     else:
@@ -568,7 +571,7 @@ class Transport(threading.Thread, ClosingContextManager):
         """
         Returns a string representation of this object, for debugging.
         """
-        id_ = hex(long(id(self)) & xffffffff)
+        id_ = hex(id(self) & xffffffff)
         out = "<paramiko.Transport at {}".format(id_)
         if not self.active:
             out += " (unconnected)"
@@ -1844,25 +1847,19 @@ class Transport(threading.Thread, ClosingContextManager):
     def stop_thread(self):
         self.active = False
         self.packetizer.close()
-        if PY2:
-            # Original join logic; #520 doesn't appear commonly present under
-            # Python 2.
-            while self.is_alive() and self is not threading.current_thread():
-                self.join(10)
-        else:
-            # Keep trying to join() our main thread, quickly, until:
-            # * We join()ed successfully (self.is_alive() == False)
-            # * Or it looks like we've hit issue #520 (socket.recv hitting some
-            # race condition preventing it from timing out correctly), wherein
-            # our socket and packetizer are both closed (but where we'd
-            # otherwise be sitting forever on that recv()).
-            while (
-                self.is_alive()
-                and self is not threading.current_thread()
-                and not self.sock._closed
-                and not self.packetizer.closed
-            ):
-                self.join(0.1)
+        # Keep trying to join() our main thread, quickly, until:
+        # * We join()ed successfully (self.is_alive() == False)
+        # * Or it looks like we've hit issue #520 (socket.recv hitting some
+        # race condition preventing it from timing out correctly), wherein
+        # our socket and packetizer are both closed (but where we'd
+        # otherwise be sitting forever on that recv()).
+        while (
+            self.is_alive()
+            and self is not threading.current_thread()
+            and not self.sock._closed
+            and not self.packetizer.closed
+        ):
+            self.join(0.1)
 
     # internals...
 
@@ -1881,9 +1878,9 @@ class Transport(threading.Thread, ClosingContextManager):
         """you are holding the lock"""
         chanid = self._channel_counter
         while self._channels.get(chanid) is not None:
-            self._channel_counter = (self._channel_counter + 1) & 0xffffff
+            self._channel_counter = (self._channel_counter + 1) & 0xFFFFFF
             chanid = self._channel_counter
-        self._channel_counter = (self._channel_counter + 1) & 0xffffff
+        self._channel_counter = (self._channel_counter + 1) & 0xFFFFFF
         return chanid
 
     def _unlink_channel(self, chanid):
@@ -2079,7 +2076,7 @@ class Transport(threading.Thread, ClosingContextManager):
 
         # active=True occurs before the thread is launched, to avoid a race
         _active_threads.append(self)
-        tid = hex(long(id(self)) & xffffffff)
+        tid = hex(id(self) & xffffffff)
         if self.server_mode:
             self._log(DEBUG, "starting thread (server mode): {}".format(tid))
         else:
@@ -2598,7 +2595,7 @@ class Transport(threading.Thread, ClosingContextManager):
 
     def _activate_inbound(self):
         """switch on newly negotiated encryption parameters for
-         inbound traffic"""
+        inbound traffic"""
         block_size = self._cipher_info[self.remote_cipher]["block-size"]
         if self.server_mode:
             IV_in = self._compute_key("A", block_size)
@@ -2634,7 +2631,7 @@ class Transport(threading.Thread, ClosingContextManager):
 
     def _activate_outbound(self):
         """switch on newly negotiated encryption parameters for
-         outbound traffic"""
+        outbound traffic"""
         m = Message()
         m.add_byte(cMSG_NEWKEYS)
         self._send_message(m)
@@ -3006,10 +3003,10 @@ class Transport(threading.Thread, ClosingContextManager):
     }
 
 
-# TODO 3.0: drop this, we barely use it ourselves, it badly replicates the
+# TODO 4.0: drop this, we barely use it ourselves, it badly replicates the
 # Transport-internal algorithm management, AND does so in a way which doesn't
 # honor newer things like disabled_algorithms!
-class SecurityOptions(object):
+class SecurityOptions:
     """
     Simple object containing the security preferences of an ssh transport.
     These are tuples of acceptable ciphers, digests, key types, and key
@@ -3090,7 +3087,7 @@ class SecurityOptions(object):
         self._set("_preferred_compression", "_compression_info", x)
 
 
-class ChannelMap(object):
+class ChannelMap:
     def __init__(self):
         # (id -> Channel)
         self._map = weakref.WeakValueDictionary()

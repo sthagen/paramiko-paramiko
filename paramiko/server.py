@@ -29,10 +29,9 @@ from paramiko.common import (
     AUTH_FAILED,
     AUTH_SUCCESSFUL,
 )
-from paramiko.py3compat import string_types
 
 
-class ServerInterface(object):
+class ServerInterface:
     """
     This class defines an interface for controlling the behavior of Paramiko
     in server mode.
@@ -356,7 +355,7 @@ class ServerInterface(object):
         If the request was successful and you would like to return contextual
         data to the remote host, return a tuple.  Items in the tuple will be
         sent back with the successful result.  (Note that the items in the
-        tuple can only be strings, ints, longs, or bools.)
+        tuple can only be strings, ints, or bools.)
 
         The default implementation always returns ``False``, indicating that it
         does not support any global requests.
@@ -594,7 +593,7 @@ class ServerInterface(object):
         return (None, None)
 
 
-class InteractiveQuery(object):
+class InteractiveQuery:
     """
     A query (set of prompts) for a user during interactive authentication.
     """
@@ -615,7 +614,7 @@ class InteractiveQuery(object):
         self.instructions = instructions
         self.prompts = []
         for x in prompts:
-            if isinstance(x, string_types):
+            if isinstance(x, str):
                 self.add_prompt(x)
             else:
                 self.add_prompt(x[0], x[1])
