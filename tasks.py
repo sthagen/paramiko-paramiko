@@ -1,10 +1,11 @@
 import os
+from pathlib import Path
 from os.path import join
 from shutil import rmtree, copytree
 
 from invoke import Collection, task
-from invocations.checks import blacken
-from invocations.docs import docs, www, sites
+from invocations import checks
+from invocations.docs import docs, www, sites, watch_docs
 from invocations.packaging.release import ns as release_coll, publish
 from invocations.testing import count_errors
 
@@ -50,8 +51,10 @@ def test(
         opts += " -f"
     modstr = ""
     if module is not None:
-        # NOTE: implicit test_ prefix as we're not on pytest-relaxed yet
-        modstr = " tests/test_{}.py".format(module)
+        base = f"{module}.py"
+        tests = Path("tests")
+        legacy = tests / f"test_{base}"
+        modstr = str(legacy if legacy.exists() else tests / base)
     # Switch runner depending on coverage or no coverage.
     # TODO: get pytest's coverage plugin working, IIRC it has issues?
     runner = "pytest"
@@ -98,7 +101,7 @@ def guard(ctx, opts=""):
 # projects do it.
 @task
 def publish_(
-    ctx, sdist=True, wheel=True, sign=True, dry_run=False, index=None
+    ctx, sdist=True, wheel=True, sign=False, dry_run=False, index=None
 ):
     """
     Wraps invocations.packaging.publish to add baked-in docs folder.
@@ -137,9 +140,11 @@ ns = Collection(
     release_coll,
     docs,
     www,
+    watch_docs,
     sites,
     count_errors,
-    blacken,
+    checks.blacken,
+    checks,
 )
 ns.configure(
     {
@@ -147,11 +152,12 @@ ns.configure(
             # NOTE: many of these are also set in kwarg defaults above; but
             # having them here too means once we get rid of our custom
             # release(), the behavior stays.
-            "sign": True,
+            "sign": False,
             "wheel": True,
             "changelog_file": join(
                 www.configuration()["sphinx"]["source"], "changelog.rst"
             ),
-        }
+        },
+        "docs": {"browse": "remote"},
     }
 )
