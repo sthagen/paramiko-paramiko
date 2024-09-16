@@ -2,6 +2,18 @@
 Changelog
 =========
 
+- :release:`3.5.0 <2024-09-15>`
+- :feature:`982` (via :issue:`2444`, which was a rebase of :issue:`2157`) Add
+  support for AES-GCM encryption ciphers (128 and 256 bit variants). Thanks to
+  Alex Gaynor for the report (& for cryptography review), Shen Cheng for the
+  original PR, and Chris Mason for the updated PR; plus as usual to everyone
+  who tested the patches and reported their results!
+
+  This functionality has been tested in client mode against OpenSSH 9.0, 9.2,
+  and 9.6, as well as against a number of proprietary appliance SSH servers.
+- :bug:`-` Check for ``None`` transport members inside
+  `~paramiko.channel.Channel` when closing the channel; this likely doesn't
+  come up much in the real world, but was causing warnings in the test suite.
 - :release:`3.4.1 <2024-08-11>`
 - :release:`3.3.2 <2024-08-11>`
 - :bug:`2419` (fixed in :issue:`2421`) Massage our import of the TripleDES
