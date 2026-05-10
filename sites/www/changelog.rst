@@ -2,6 +2,99 @@
 Changelog
 =========
 
+- :release:`5.0.0 <2026-05-09>`
+- :bug:`- major` Fix `Ed25519Key <paramiko.ed25519key.Ed25519Key>`'s internals
+  such that it no longer throws `AttributeError` during calls to ``__repr__``
+  when only partly initialized. This isn't a normal runtime problem (it only
+  happens inside error handling for fatal errors like "not a valid private
+  key") but was perennially complicating test failure diagnosis and similar
+  scenarios.
+- :support:`-` The `PKey <paramiko.pkey.PKey>` class family tree reorganized
+  the ``write_private_key`` and ``write_private_key_file`` methods; with other
+  recent changes, having individual implementations on the child classes made
+  no sense, so key writing is now implemented in `PKey <paramiko.pkey.PKey>`
+  itself and the included child classes such as `ECDSAKey
+  <paramiko.ecdsakey.ECDSAKey>` no longer define their own such methods,
+  instead simply exposing their underlying cryptographic private key objects as
+  ``.private_key``.
+- :feature:`-` Added a new, optional ``file_format`` keyword argument to
+  `PKey.write_private_key <paramiko.pkey.PKey.write_private_key>` and
+  `PKey.write_private_key_file <paramiko.pkey.PKey.write_private_key_file>` to
+  allow writing out OpenSSH-style private key files in addition to the legacy
+  PEM format.
+
+  .. warning::
+    While the default format remains PEM in Paramiko 5, future major releases
+    are likely to change that default to the OpenSSH format. We recommend
+    updating any key-writing code you have to be explicit now, to insulate
+    yourself from such an update.
+
+- :support:`-` Raised the minimum modulus size in
+  ``diffie-hellman-group-exchange-sha256`` key exchange from 1024 (the original
+  spec's minimum) to 2048 (the contemporary minimum according to :rfc:`9142`,
+  and matching a similar change by OpenSSH ten years ago in 7.2 / 2016).
+
+  .. warning::
+    This change may be backwards incompatible if you were targeting servers
+    supporting *only* this kex method and whose own maximum modulus size for
+    group-exchange was lower than 2048.
+
+- :support:`-` Removed GSSAPI support, as the current (buggy, no longer easily
+  testable in CI, poorly understood and not used by the core team)
+  implementation is SHA-1 based and no SHA-256 upgrade appeared to be
+  forthcoming from contributors.
+
+  We don't like removing functionality, but this feature has been on the rocks
+  for years and it makes sense to remove it as an insecure support burden. We
+  will definitely consider merging a SHA256-based replacement in the future if
+  a high-quality one appears.
+
+  Side note: the GSS related constants in ``paramiko/common.py`` have been left
+  in place as they are essentially mapping out known protocol numbers.
+
+  .. warning:: This change is backwards incompatible if you require GSS.
+
+- :support:`-` Removed support for key exchange using SHA-1, meaning the kex
+  methods ``diffie-hellman-group-exchange-sha1``,
+  ``diffie-hellman-group14-sha1``, and ``diffie-hellman-group1-sha1`` are now
+  gone. Implementing classes have been removed/merged/shuffled as required.
+
+  .. warning::
+    This change is backwards incompatible if you were still supporting old
+    systems that don't implement sha256/sha512 DH kex (or ECDH kex).
+
+- :support:`-` Removed support for verifying/signing with RSA keys using SHA-1
+  hashing. Generally, this means most cases where ``"ssh-rsa"`` was used as an
+  algorithm identifier (as opposed to a key material identifier) will no longer
+  accept that string as valid, and the relevant code that actually used eg
+  `hashes.SHA1` no longer does.
+
+  .. warning::
+    This change is backwards incompatible if you are stuck supporting legacy
+    systems with Paramiko that are unable to use SHA2-based signatures with RSA
+    keys (or other workarounds, such as switching from RSA keys to Ed25519
+    ones).
+
+- :bug:`- major` Added a ``password`` kwarg to `PKey.from_type_string
+  <paramiko.pkey.PKey.from_type_string>` so it can handle encrypted keys like
+  most other PKey constructors already could.
+- :support:`-` Renamed `PKey.from_path <paramiko.pkey.PKey.from_path>`'s
+  ``passphrase`` argument to ``password`` so it's consistent with all the other
+  methods of instantiating PKey objects.
+
+    .. warning::
+        This change is backwards incompatible if you were using this relatively
+        new constructor + were doing so to load encrypted keys.
+
+- :support:`-` Removed the ``demos/`` folder; they've become too big a support
+  burden and we've wanted to remove them for years.
+
+  Users who enjoyed the client-side demos should look at our wrapper library,
+  `Fabric <https://fabfile.org>`_.
+
+  We suspect the most-used demo was ``demos/demo-server.py`` and may consider
+  adding a variant of it to the actual Python package in future.
+
 - :release:`4.0.0 <2025-08-03>`
 - :support:`-` Administrivia update:
 

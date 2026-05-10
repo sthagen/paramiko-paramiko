@@ -12,3 +12,4 @@ build:
 
 sphinx:
   configuration: sites/www/conf.py
+  fail_on_warning: true

@@ -46,7 +46,6 @@ from paramiko.auth_strategy import (
     PrivateKey,
     SourceResult,
 )
-from paramiko.ssh_gss import GSSAuth, GSS_AUTH_AVAILABLE, GSS_EXCEPTIONS
 from paramiko.channel import (
     Channel,
     ChannelFile,
